@@ -1,0 +1,12 @@
+Org + Repo Scraper (GitHub API)
+
+Repo Inspector (via local clone or remote content API)
+
+URL Extractor + Validator
+
+Package Extractor + Registry Checker
+
+Live/Broken Link Checker
+
+Reporting Engine (TXT, JSON, etc.)
+
