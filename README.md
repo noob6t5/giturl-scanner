@@ -1,2 +1,30 @@
 # giturl-scanner
-Tool to Scan Github URL in repos
+This tool goes through all public (non-archived) repos of any GitHub org, clones them, extracts every URL and package dependency. 
+Inspired by similar tool of **Arshad Kazmi** [github-scanner-local](https://github.com/arshadkazmi42/github-scanner-local)
+
+---
+
+## ⚡ What It Does
+
+- 🔎 Clones all **non-archived** repos from a GitHub org using api
+- 🕵️ Extracts **URLs** from code, docs, configs, HTML, JSON, etc.
+- ⚔️ Validates URLs using [`httpx`](https://github.com/projectdiscovery/httpx)
+- 📦 Extracts packages (npm, pypi, gem, go)
+- 💀 Flags **broken links** + **potentially hijackable packages**
+
+---
+
+## 🛠 Requirements
+- Python 3.x
+
+- httpx Go tool in your $PATH
+
+- Optional: GH_TOKEN set for higher GitHub API limits
+## 🚀 Usage
+
+```bash
+git clone https://github.com/noob6t5/giturl-scanner.git
+
+cd giturl-scanner
+
+python3 finder.py <github-org-name> 
