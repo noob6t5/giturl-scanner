@@ -16,7 +16,7 @@ GITHUB_TOKEN = os.getenv("GH_TOKEN")
 HEADERS = {
     "Authorization": f"token {GITHUB_TOKEN}",
     "Accept": "application/vnd.github+json",
-    "User-Agent": "blackhat-recon",
+    "User-Agent": "gh-recon",
 }
 
 EXTENSIONS_TO_SCAN = [
@@ -32,16 +32,14 @@ EXTENSIONS_TO_SCAN = [
     ".sh",
     ".txt",
     ".html",
+    ".htm",
     ".css",
     ".env",
     ".ini",
     ".cfg",
 ]
 
-URL_REGEX = re.compile(
-    r"https?://[a-zA-Z0-9.-]+\.[a-z]{2,6}(?::\d+)?(?:/[^\s<>{}\\[\\]|\\^`\"']*)?",
-    re.IGNORECASE,
-)
+URL_REGEX = re.compile(r"https?://[^\s\"\'<>\\)]+", re.IGNORECASE)
 
 PACKAGE_REGISTRIES = {
     "npm": lambda name: f"https://registry.npmjs.org/{name}",
@@ -51,47 +49,8 @@ PACKAGE_REGISTRIES = {
 }
 
 
-def is_valid_url(url):
-    parsed = urlparse(url)
-    host = parsed.hostname or ""
-
-    dummy_patterns = [
-        "localhost",
-        "127.0.0.1",
-        "0.0.0.0",
-        "example.com",
-        "example.org",
-        "example.net",
-        "foo",
-        "bar",
-        "test",
-        "invalid",
-        "localdomain",
-        "testserver",
-    ]
-
-    if any(dummy in host for dummy in dummy_patterns):
-        return False
-
-    bad_netblocks = ["127.", "0.", "10.", "192.168.", "169.254.", "172."]
-    if any(host.startswith(prefix) for prefix in bad_netblocks):
-        return False
-
-    if "{" in url or "}" in url or "xn--" in host or "%" in url.lower():
-        return False
-
-    if "/commit/" in url or "/issues/" in url:
-        return False
-
-    if re.search(r"\.com:/", url, re.IGNORECASE):
-        return False
-
-    return True
-
-
 def check_package_url(name, lang):
     name = name.strip()
-
     ban_list = {
         "host",
         "port",
@@ -116,7 +75,6 @@ def check_package_url(name, lang):
         "false",
         "null",
     }
-
     if (
         not name
         or len(name) < 2
@@ -144,6 +102,17 @@ def check_package_url(name, lang):
         return name, "Request Failed"
 
 
+def check_url_live(url):
+    try:
+        res = requests.get(url, timeout=5)
+        if res.status_code < 400:
+            return url, True
+        else:
+            return url, False
+    except:
+        return url, False
+
+
 def extract_declared_packages(file_path):
     packages = {"npm": set(), "pypi": set(), "gem": set(), "go": set()}
     try:
@@ -162,10 +131,8 @@ def extract_declared_packages(file_path):
         elif file_path.endswith("Pipfile"):
             with open(file_path, "r", encoding="utf-8") as f:
                 data = toml.load(f)
-                default_pkgs = data.get("packages", {})
-                dev_pkgs = data.get("dev-packages", {})
-                packages["pypi"].update(default_pkgs.keys())
-                packages["pypi"].update(dev_pkgs.keys())
+                packages["pypi"].update(data.get("packages", {}).keys())
+                packages["pypi"].update(data.get("dev-packages", {}).keys())
         elif file_path.endswith("Gemfile"):
             with open(file_path, "r", encoding="utf-8") as f:
                 for line in f:
@@ -183,6 +150,48 @@ def extract_declared_packages(file_path):
     except Exception as e:
         print(f"[!] Failed parsing {file_path}: {e}")
     return packages
+
+
+def extract_urls_and_packages(repo_path):
+    findings = {
+        "urls": set(),
+        "packages": {k: set() for k in PACKAGE_REGISTRIES.keys()},
+    }
+    for root, dirs, files in os.walk(repo_path):
+        for f in files:
+            full_path = os.path.join(root, f)
+            ext = os.path.splitext(f)[1].lower()
+            if ext in EXTENSIONS_TO_SCAN:
+                try:
+                    with open(
+                        full_path, "r", encoding="utf-8", errors="ignore"
+                    ) as file:
+                        content = file.read()
+                        raw_urls = URL_REGEX.findall(content)
+                        if full_path.endswith(".md"):
+                            raw_urls += re.findall(
+                                r"\[.*?\]\((https?://[^\s\)]+)\)", content
+                            )
+                        if full_path.endswith((".html", ".htm")):
+                            soup = BeautifulSoup(content, "html.parser")
+                            raw_urls += [
+                                a["href"]
+                                for a in soup.find_all("a", href=True)
+                                if a["href"].startswith("http")
+                            ]
+                        if full_path.endswith(".json"):
+                            content = content.replace("\\/", "/")
+                        if raw_urls:
+                            print(f"[+] Found {len(raw_urls)} URLs in {full_path}")
+                            for u in raw_urls:
+                                print(f"    URL: {u}")
+                            findings["urls"].update(raw_urls)
+                        declared = extract_declared_packages(full_path)
+                        for k in declared:
+                            findings["packages"][k].update(declared[k])
+                except Exception as e:
+                    print(f"[!] Error reading {full_path}: {e}")
+    return findings
 
 
 def get_repos(org):
@@ -221,89 +230,32 @@ def clone_repo(clone_url, dest_dir):
         print(f"[!] Failed to clone {clone_url}: {e}")
 
 
-def extract_urls_and_packages(repo_path):
-    findings = {
-        "urls": set(),
-        "packages": {k: set() for k in PACKAGE_REGISTRIES.keys()},
-    }
-    for root, dirs, files in os.walk(repo_path):
-        for f in files:
-            full_path = os.path.join(root, f)
-            ext = os.path.splitext(f)[1]
-            if ext.lower() in EXTENSIONS_TO_SCAN:
-                try:
-                    with open(
-                        full_path, "r", encoding="utf-8", errors="ignore"
-                    ) as file:
-                        content = file.read()
-                        urls = filter(is_valid_url, URL_REGEX.findall(content))
-                        findings["urls"].update(urls)
-                except Exception as e:
-                    print(f"[!] Error reading {full_path}: {e}")
-            declared = extract_declared_packages(full_path)
-            for k in declared:
-                findings["packages"][k].update(declared[k])
-    return findings
-
-
-def run_httpx(input_file="tmp_urls.txt", output_file="httpx_results.txt"):
-    cmd = [
-        "httpx",
-        "-l",
-        input_file,
-        "-status-code",
-        "-silent",
-        "-threads",
-        "100",
-        "-o",
-        output_file,
-    ]
-    subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-
-
 def write_output(org, findings):
     os.makedirs("output", exist_ok=True)
     with open(f"output/{org}_recon.txt", "w") as f:
-
-        with open("tmp_urls.txt", "w") as tmp:
-            for url in sorted(findings["urls"]):
-                tmp.write(url + "\n")
-
-        run_httpx("tmp_urls.txt", "httpx_results.txt")
-
-        broken_links = []
-        live_links = []
-
-        with open("httpx_results.txt", "r") as result_file:
-            for line in result_file:
-                if not line.strip():
-                    continue
-                try:
-                    url, status = re.match(
-                        r"(https?://[^\s]+)\s+\[(\d+)\]", line.strip()
-                    ).groups()
-                    status = int(status)
-                    if status >= 400:
-                        broken_links.append((url, status))
-                    else:
-                        live_links.append((url, status))
-                except:
-                    continue
-
-        f.write("==== Live URLs (via httpx) ====\n")
-        for url, code in live_links:
-            f.write(f"{url} [HTTP {code}]\n")
-
-        f.write("\n==== Broken URLs (via httpx) ====\n")
-        for url, code in broken_links:
-            f.write(f"{url} [HTTP {code}] BROKEN\n")
-
         with concurrent.futures.ThreadPoolExecutor(max_workers=30) as executor:
+            f.write("==== Live URLs (via requests) ====\n")
+            live_urls, dead_urls = [], []
+            futures = [executor.submit(check_url_live, url) for url in findings["urls"]]
+            for future in concurrent.futures.as_completed(futures):
+                url, is_live = future.result()
+                if is_live:
+                    live_urls.append(url)
+                    f.write(f"{url}\n")
+                else:
+                    dead_urls.append(url)
+
+            f.write("\n==== Broken URLs (via requests) ====\n")
+            for url in dead_urls:
+                f.write(f"{url}\n")
+
             for lang, pkgs in findings["packages"].items():
                 f.write(f"\n==== {lang.upper()} Packages (Status) ====\n")
-                futures = [executor.submit(check_package_url, p, lang) for p in pkgs]
-                for future in concurrent.futures.as_completed(futures):
-                    name, status = future.result()
+                pkg_futures = [
+                    executor.submit(check_package_url, p, lang) for p in pkgs
+                ]
+                for pf in concurrent.futures.as_completed(pkg_futures):
+                    name, status = pf.result()
                     if status != "INVALID":
                         pkg_url = PACKAGE_REGISTRIES[lang](name)
                         f.write(f"{name} -> {pkg_url} [{status}]\n")
@@ -327,17 +279,21 @@ def main():
         "packages": {k: set() for k in PACKAGE_REGISTRIES.keys()},
     }
 
-    for clone_url in repos:
-        name = clone_url.split("/")[-1].replace(".git", "")
-        dest = os.path.join(org_dir, name)
-        clone_repo(clone_url, dest)
-        results = extract_urls_and_packages(dest)
-        master_findings["urls"].update(results["urls"])
-        for k in PACKAGE_REGISTRIES:
-            master_findings["packages"][k].update(results["packages"][k])
-
-    write_output(org, master_findings)
-    print(f"[+] Recon complete. Output saved to output/{org}_recon.txt")
+    try:
+        for clone_url in repos:
+            name = clone_url.split("/")[-1].replace(".git", "")
+            dest = os.path.join(org_dir, name)
+            clone_repo(clone_url, dest)
+            results = extract_urls_and_packages(dest)
+            master_findings["urls"].update(results["urls"])
+            for k in PACKAGE_REGISTRIES:
+                master_findings["packages"][k].update(results["packages"][k])
+            write_output(org, master_findings)
+    except KeyboardInterrupt:
+        print("\n[!] Interrupted. Saving partial results...")
+    finally:
+        write_output(org, master_findings)
+        print(f"[+] Output saved to output/{org}_recon.txt")
 
 
 if __name__ == "__main__":
