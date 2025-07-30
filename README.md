@@ -23,6 +23,8 @@ Inspired by similar tool of **Arshad Kazmi** [github-scanner-local](https://gith
 ## 🚀 Usage
 
 ```bash
+export GH_TOKEN=gh_yourtoken
+
 git clone https://github.com/noob6t5/giturl-scanner.git
 
 cd giturl-scanner
