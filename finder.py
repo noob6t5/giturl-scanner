@@ -9,6 +9,8 @@ import concurrent.futures
 from git import Repo
 from urllib.parse import urlparse
 from bs4 import BeautifulSoup
+from domain_filter import is_validurl, is_valid_package
+
 
 GITHUB_API = "https://api.github.com"
 GITHUB_TOKEN = os.getenv("GH_TOKEN")
@@ -50,45 +52,6 @@ PACKAGE_REGISTRIES = {
 
 
 def check_package_url(name, lang):
-    name = name.strip()
-    ban_list = {
-        "host",
-        "port",
-        "design",
-        "pretty",
-        "performance",
-        "value",
-        "index",
-        "main",
-        "default",
-        "debug",
-        "error",
-        "message",
-        "json",
-        "config",
-        "release",
-        "object",
-        "input",
-        "output",
-        "none",
-        "true",
-        "false",
-        "null",
-    }
-    if (
-        not name
-        or len(name) < 2
-        or name.lower() in ban_list
-        or name.strip().isdigit()
-        or re.fullmatch(r"[-_.]+", name)
-        or re.match(r"^[A-Z0-9_]{3,}$", name)
-        or re.search(r"[^a-zA-Z0-9_\-]", name)
-        or name.startswith("-")
-        or name.endswith("-")
-        or name.count("-") > 3
-    ):
-        return name, "INVALID"
-
     url = PACKAGE_REGISTRIES[lang](name)
     try:
         r = requests.get(url, timeout=6)
@@ -185,15 +148,16 @@ def extract_urls_and_packages(repo_path):
                             print(f"[+] Found {len(raw_urls)} URLs in {full_path}")
                             for u in raw_urls:
                                 print(f"    URL: {u}")
-                            findings["urls"].update(raw_urls)
+                            filtered = [u for u in raw_urls if  is_validurl(u)]
+                            findings["urls"].update(filtered)
                         declared = extract_declared_packages(full_path)
                         for k in declared:
-                            findings["packages"][k].update(declared[k])
+                            cleaned = {p for p in declared[k] if is_valid_package(p)}
+                            findings["packages"][k].update(cleaned)
                 except Exception as e:
                     print(f"[!] Error reading {full_path}: {e}")
     return findings
-
-
+# org from here
 def get_repos(org):
     repos = []
     page = 1
@@ -252,7 +216,9 @@ def write_output(org, findings):
             for lang, pkgs in findings["packages"].items():
                 f.write(f"\n==== {lang.upper()} Packages (Status) ====\n")
                 pkg_futures = [
-                    executor.submit(check_package_url, p, lang) for p in pkgs
+                    executor.submit(check_package_url, p, lang)
+                    for p in pkgs
+                    if is_valid_package(p)
                 ]
                 for pf in concurrent.futures.as_completed(pkg_futures):
                     name, status = pf.result()

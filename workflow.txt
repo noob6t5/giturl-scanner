@@ -10,5 +10,8 @@ Live/Broken Link Checker
 
 Reporting Engine (TXT, JSON, etc.)
 
-##  Todo
-Make separate code and regexes for filtering dummy and test domain's.
+todo : remove exmaple based domain from below type of url
+
+
+http://home.example.org:8888/cookie-parser-result?domain0019
+
