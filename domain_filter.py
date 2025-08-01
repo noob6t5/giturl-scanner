@@ -1,7 +1,7 @@
 import re
 from urllib.parse import urlparse
 
-
+# Skip useless domains
 NOT2SAVE_DOMAINS = {
     "example",
     "example.com",
@@ -15,10 +15,11 @@ NOT2SAVE_DOMAINS = {
     "youtube.com",
     "stackoverflow.com",
     "bitly.com",
-    "en.wikipedia.org" ,
-    "apache.org/licenses"
+    "en.wikipedia.org",
+    "apache.org/licenses",
 }
-# can be added more further
+
+
 def normalize_hostname(hostname):
     if not hostname:
         return ""
@@ -29,21 +30,51 @@ def is_validurl(url: str) -> bool:
     try:
         parsed = urlparse(url)
         hostname = normalize_hostname(parsed.hostname)
+        path = parsed.path.lower()
+
         if not hostname:
             return False
+
         if hostname in NOT2SAVE_DOMAINS:
             return False
+
         if re.search(r"\{\{.*?\}\}", url) or "{" in url or "}" in url:
             return False
-        if re.match(
-            r"https?://[^/]+\.\w{1,6}[:/]*$", url
-        ):  # overly short root or malformed
+
+        if re.match(r"https?://[^/]+\.\w{1,6}[:/]*$", url):
+            return False  
+
+        # ===== GitHub-specific filtering =====
+        if hostname == "github.com":
+            # Block  PRs, issues, etc
+            if re.search(
+                r"/(pull|issues|commit|commits|discussions|blob|tree|compare|releases|actions)(/|$)",
+                path,
+            ):
+                return False
+
+        # Block GitHub actions or PR trash if somehow missed
+        if (
+            "/pull/" in path
+            or "/issues/" in path
+            or "/commit/" in path
+            or "/discussions/" in path
+        ):
             return False
+
+        # Still allow:
+        # - https://github.com/user
+        # - https://github.com/user/repo
+        # - https://raw.githubusercontent.com/...
+        # - https://gist.github.com/...
+
     except:
         return False
+
     return True
 
-# for false-positive package names
+
+# Common non-target packages (false-positive filter)
 NOT2SAVE_PACKAGES = {
     "host",
     "port",
@@ -75,7 +106,6 @@ NOT2SAVE_PACKAGES = {
     "sample",
 }
 
-
 def is_valid_package(pkg: str) -> bool:
     if not pkg or len(pkg.strip()) < 2:
         return False
@@ -85,6 +115,6 @@ def is_valid_package(pkg: str) -> bool:
         return False
     if re.match(r"^[A-Z0-9_]{3,}$", pkg):
         return False
-    if re.search(r"[^a-zA-Z0-9_\-\.]", pkg):  # Allow dots for Java/Maven style
+    if re.search(r"[^a-zA-Z0-9_\-\.]", pkg):  # allow dot for Maven style
         return False
     return True

@@ -11,7 +11,6 @@ from urllib.parse import urlparse
 from bs4 import BeautifulSoup
 from domain_filter import is_validurl, is_valid_package
 
-
 GITHUB_API = "https://api.github.com"
 GITHUB_TOKEN = os.getenv("GH_TOKEN")
 
@@ -68,10 +67,7 @@ def check_package_url(name, lang):
 def check_url_live(url):
     try:
         res = requests.get(url, timeout=5)
-        if res.status_code < 400:
-            return url, True
-        else:
-            return url, False
+        return url, res.status_code < 400
     except:
         return url, False
 
@@ -131,10 +127,12 @@ def extract_urls_and_packages(repo_path):
                     ) as file:
                         content = file.read()
                         raw_urls = URL_REGEX.findall(content)
+
                         if full_path.endswith(".md"):
                             raw_urls += re.findall(
                                 r"\[.*?\]\((https?://[^\s\)]+)\)", content
                             )
+
                         if full_path.endswith((".html", ".htm")):
                             soup = BeautifulSoup(content, "html.parser")
                             raw_urls += [
@@ -142,22 +140,29 @@ def extract_urls_and_packages(repo_path):
                                 for a in soup.find_all("a", href=True)
                                 if a["href"].startswith("http")
                             ]
+
                         if full_path.endswith(".json"):
                             content = content.replace("\\/", "/")
-                        if raw_urls:
-                            print(f"[+] Found {len(raw_urls)} URLs in {full_path}")
-                            for u in raw_urls:
-                                print(f"    URL: {u}")
-                            filtered = [u for u in raw_urls if  is_validurl(u)]
+
+                        filtered = [u for u in raw_urls if is_validurl(u)]
+                        if filtered:
+                            cleaned = [u for u in filtered if is_validurl(u)]
+                            if cleaned:
+                                print(f"[+] {len(cleaned)} useful URLs in {full_path}")
+                                for u in cleaned:
+                                    print(f"    URL: {u}")
                             findings["urls"].update(filtered)
+
                         declared = extract_declared_packages(full_path)
                         for k in declared:
                             cleaned = {p for p in declared[k] if is_valid_package(p)}
                             findings["packages"][k].update(cleaned)
+
                 except Exception as e:
                     print(f"[!] Error reading {full_path}: {e}")
     return findings
-# org from here
+
+
 def get_repos(org):
     repos = []
     page = 1
