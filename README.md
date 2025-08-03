@@ -29,4 +29,10 @@ git clone https://github.com/noob6t5/giturl-scanner.git
 
 cd giturl-scanner
 
-python3 finder.py <github-org-name> 
+python3 finder.py <github-org-name>
+```
+---
+## TODO
+- [ ] Scan secrets in cloned repo using TruffleHog and Gitleaks
+- [ ] Add `requirements.txt`
+- [ ] Adjust exporting GitHub token safely
