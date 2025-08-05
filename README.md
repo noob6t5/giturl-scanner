@@ -36,3 +36,4 @@ python3 finder.py <github-org-name>
 - [ ] Scan secrets in cloned repo using TruffleHog and Gitleaks
 - [ ] Add `requirements.txt`
 - [ ] Adjust exporting GitHub token safely
+- [ ] Add total repo counter and Clone silently to avoid terminal flooding
