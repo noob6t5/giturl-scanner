@@ -37,4 +37,5 @@ python3 finder.py <github-org-name>
 - [ ] Add `requirements.txt`
 - [ ] Adjust exporting GitHub token safely
 - [ ] Add total repo counter and Clone silently to avoid terminal flooding
-- [ ] Configure with [Confused](https://github.com/visma-prodsec/confused) for dependency confusion 
+- [ ] Configure with [Confused](https://github.com/visma-prodsec/confused) for dependency confusion
+- [ ] Add -f for folder of repos
