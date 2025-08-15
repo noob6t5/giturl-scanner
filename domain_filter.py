@@ -17,8 +17,10 @@ NOT2SAVE_DOMAINS = {
     "bitly.com",
     "en.wikipedia.org",
     "apache.org/licenses",
+    "avatars.githubusercontent.com",
+    "www.w3.org",
 }
-
+# TODO: Add from CLI too
 
 def normalize_hostname(hostname):
     if not hostname:
