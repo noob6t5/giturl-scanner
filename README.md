@@ -6,7 +6,7 @@ Inspired by similar tool of **Arshad Kazmi** [github-scanner-local](https://gith
 
 ## ⚡ What It Does
 
-- 🔎 Clones all **non-archived** repos from a GitHub org using api
+- 🔎 Clones all **non-archived** repos from a GitHub org using api as well from local folder's
 - 🕵️ Extracts **URLs** from code, docs, configs, HTML, JSON, etc.
 - ⚔️ Validates URLs using [`httpx`](https://github.com/projectdiscovery/httpx)
 - 📦 Extracts packages (npm, pypi, gem, go)
@@ -35,8 +35,16 @@ python3 finder.py -f folder_here
 
 ```
 ---
+
+<img width="619" height="120" alt="finder" src="https://github.com/user-attachments/assets/76c3e5c3-656d-43c8-b27f-a18fd9905686" />
+
+
+
+---
 ## TODO
 - [ ] Scan secrets in cloned repo using TruffleHog and Gitleaks
 - [ ] Add `requirements.txt`
 - [ ] Adjust exporting GitHub token safely
 - [ ] Configure with [Confused](https://github.com/visma-prodsec/confused) for dependency confusion
+
+
