@@ -46,5 +46,6 @@ python3 finder.py -f folder_here
 - [ ] Add `requirements.txt`
 - [ ] Adjust exporting GitHub token safely
 - [ ] Configure with [Confused](https://github.com/visma-prodsec/confused) for dependency confusion
+- [ ] Separate Username and Check for Takeover by 404 status code
 
 
